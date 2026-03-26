@@ -30,7 +30,8 @@ public enum CheckFullName {
     HEX_LITERAL_CASE("com.puppycrawl.tools.checkstyle.checks.HexLiteralCaseCheck"),
     NUMERICAL_PREFIXES_INF_SUF_CASE(
       "com.puppycrawl.tools.checkstyle.checks.NumericalPrefixesInfixesSuffixesCharacterCaseCheck"),
-    REDUNDANT_IMPORT("com.puppycrawl.tools.checkstyle.checks.imports.RedundantImportCheck");
+    REDUNDANT_IMPORT("com.puppycrawl.tools.checkstyle.checks.imports.RedundantImportCheck"),
+    CONSTRUCTORS_DECLARATION_GROUPING("com.puppycrawl.tools.checkstyle.checks.coding.ConstructorsDeclarationGroupingCheck");
 
     private final String id;
 
