@@ -1,3 +1,20 @@
+///////////////////////////////////////////////////////////////////////////////////////////////
+// checkstyle-openrewrite-recipes: Automatically fix Checkstyle violations with OpenRewrite.
+// Copyright (C) 2025 The Checkstyle OpenRewrite Recipes Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+///////////////////////////////////////////////////////////////////////////////////////////////
+
 package org.checkstyle.autofix.recipe;
 
 import java.nio.file.Path;
@@ -11,6 +28,7 @@ import org.openrewrite.Recipe;
 import org.openrewrite.TreeVisitor;
 import org.openrewrite.java.JavaIsoVisitor;
 import org.openrewrite.java.tree.J;
+import org.openrewrite.java.tree.Space;
 import org.openrewrite.java.tree.Statement;
 
 /**
@@ -58,23 +76,20 @@ public class ConstructorsDeclarationGrouping extends Recipe {
 
             J.ClassDeclaration cd = super.visitClassDeclaration(classDecl, executionContext);
 
-            // Find all methods that are constructors
-            List<Statement> statements = new ArrayList<>(cd.getBody().getStatements());
-            List<J.MethodDeclaration> constructors = new ArrayList<>();
-            List<J.MethodDeclaration> violatingConstructors = new ArrayList<>();
+            final List<Statement> statements = new ArrayList<>(cd.getBody().getStatements());
+
+            // Identify violating constructors and the initial constructor group boundary
+            final List<J.MethodDeclaration> violatingConstructors = new ArrayList<>();
             int firstConstructorIndex = -1;
-            int lastConstructorIndex = -1;
 
             for (int i = 0; i < statements.size(); i++) {
-                Statement statement = statements.get(i);
+                final Statement statement = statements.get(i);
                 if (statement instanceof J.MethodDeclaration) {
-                    J.MethodDeclaration method = (J.MethodDeclaration) statement;
+                    final J.MethodDeclaration method = (J.MethodDeclaration) statement;
                     if (method.isConstructor()) {
-                        constructors.add(method);
                         if (firstConstructorIndex == -1) {
                             firstConstructorIndex = i;
                         }
-                        lastConstructorIndex = i;
                         if (isAtViolationLocation(method)) {
                             violatingConstructors.add(method);
                         }
@@ -82,37 +97,40 @@ public class ConstructorsDeclarationGrouping extends Recipe {
                 }
             }
 
-            if (!violatingConstructors.isEmpty() && firstConstructorIndex != -1) {
-                // Determine where to group them. We group them right after the last non-violating constructor.
-                // A simpler approach: remove all violating constructors and insert them after the last valid constructor block.
-                
-                // Let's collect valid constructors that are part of the initial group
-                int insertIndex = firstConstructorIndex;
-                while (insertIndex < statements.size() && 
-                       statements.get(insertIndex) instanceof J.MethodDeclaration && 
-                       ((J.MethodDeclaration) statements.get(insertIndex)).isConstructor() &&
-                       !violatingConstructors.contains(statements.get(insertIndex))) {
-                    insertIndex++;
-                }
-
-                // Remove violating constructors from their original positions
-                for (J.MethodDeclaration violatingConstructor : violatingConstructors) {
-                    statements.remove(violatingConstructor);
-                }
-
-                // Insert violating constructors at the correct position
-                // Since we removed elements, the insertIndex might need adjustment if we removed elements before it,
-                // but violating constructors are always after the initial group.
-                for (int i = 0; i < violatingConstructors.size(); i++) {
-                    statements.add(insertIndex + i, violatingConstructors.get(i));
-                }
-
-                cd = cd.withBody(cd.getBody().withStatements(statements));
-                // We should trigger maybeAutoFormat if we changed the tree, but let's rely on basic spacing first
-                cd = maybeAutoFormat(classDecl, cd, executionContext);
+            if (violatingConstructors.isEmpty() || firstConstructorIndex == -1) {
+                return cd;
             }
 
-            return cd;
+            // Find the index just past the initial contiguous constructor group.
+            // This is where violating constructors will be inserted.
+            int insertIndex = firstConstructorIndex;
+            while (insertIndex < statements.size()
+                    && statements.get(insertIndex) instanceof J.MethodDeclaration
+                    && ((J.MethodDeclaration) statements.get(insertIndex)).isConstructor()
+                    && !violatingConstructors.contains(statements.get(insertIndex))) {
+                insertIndex++;
+            }
+
+            // The prefix (leading whitespace / newlines) used by members at the insert position.
+            // We reuse this prefix for each moved constructor so indentation stays consistent.
+            final Space memberPrefix = statements.get(insertIndex).getPrefix();
+
+            // Remove violating constructors from their original positions.
+            // Violating constructors are always after the initial group, so removing them
+            // does not affect insertIndex.
+            for (final J.MethodDeclaration violatingConstructor : violatingConstructors) {
+                statements.remove(violatingConstructor);
+            }
+
+            // Insert violating constructors right after the initial constructor group,
+            // assigning the correct prefix to preserve indentation without reformatting.
+            for (int i = 0; i < violatingConstructors.size(); i++) {
+                final J.MethodDeclaration ctor = violatingConstructors.get(i)
+                        .withPrefix(memberPrefix);
+                statements.add(insertIndex + i, ctor);
+            }
+
+            return cd.withBody(cd.getBody().withStatements(statements));
         }
 
         private boolean isAtViolationLocation(J.MethodDeclaration methodDeclaration) {
@@ -124,7 +142,7 @@ public class ConstructorsDeclarationGrouping extends Recipe {
 
             boolean matches = false;
 
-            for (CheckstyleViolation violation : violations) {
+            for (final CheckstyleViolation violation : violations) {
                 if (violation.getLine() == line
                         && violation.getFilePath().endsWith(sourcePath)) {
                     matches = true;

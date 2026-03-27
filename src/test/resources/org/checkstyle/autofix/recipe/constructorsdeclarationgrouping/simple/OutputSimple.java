@@ -1,3 +1,11 @@
+/*xml
+<module name="Checker">
+  <module name="TreeWalker">
+    <module name="com.puppycrawl.tools.checkstyle.checks.coding.ConstructorsDeclarationGroupingCheck"/>
+  </module>
+</module>
+*/
+
 package org.checkstyle.autofix.recipe.constructorsdeclarationgrouping.simple;
 
 public class OutputSimple {
@@ -8,9 +16,9 @@ public class OutputSimple {
 
     OutputSimple(String s) {}
 
-    OutputSimple(int x) {} // violation 'Constructors should be grouped together'
+    OutputSimple(int x) {}
 
-    OutputSimple(String s, int x) {} // violation 'Constructors should be grouped together'
+    OutputSimple(String s, int x) {}
 
     void foo() {}
 }
